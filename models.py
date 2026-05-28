@@ -41,5 +41,49 @@ class FileDiff:
     
     def __str__(self) -> str:
         return f"[{self.action.upper()}] {self.path}"
+    
 
+@dataclass
+class SandboxResult:
+    
+    stdout: str
+    strerr: str
+    exit_code: int
+    diffs: list[FileDiff]
+    
+    upper_dir: Path # Path to the tmpfs upper layer (alive until commit or discard)
+    _mount_point: Path | None = field(default=None, repr=False) # tmpfs mount point to umount on cleanup
+ 
+    @property
+    def has_changed(self) -> bool:
+        return len(self.diffs) > 0
+    
+    def summary(self) -> str:
+        lines = []
+        for diff in self.diffs:
+            lines.append(str(diff))
+        return "\n".join(lines) if lines else "(no filesystem changes)"
+
+
+@dataclass
+class ExecutionResult:
+    command: str
+    stdout: str
+    stderr: str
+    exit_code: int
+    duration_ms: int
+    risk_level: RiskLevel
+    timed_out: bool = False
+    resource_killed: bool = False
+    sandboxed: bool = False
+    committed: bool = False
+    diffs: list[FileDiff] | None = None
+
+    @property
+    def success(self) -> bool:
+        return self.exit_code == 0 and not self.timed_out and not self.resource_killed
+ 
+    def __str__(self) -> str:
+        status = "OK" if self.success else f"FAIL(exit={self.exit_code})"
+        return f"[{self.risk_level.value}] {self.command!r} -> {status} in {self.duration_ms}ms"
 
